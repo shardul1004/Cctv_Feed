@@ -16,7 +16,7 @@ st.markdown(
     .css-18e3th9 {
         padding: 0;
     }
-    /* Optional: Style the input and button elements */
+    /* Optional: Style the input and button elements */ 
     input, button {
         color: #333333;
         background-color: #f0f0f0;
