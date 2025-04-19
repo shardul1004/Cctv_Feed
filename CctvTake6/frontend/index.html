@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediaMTX Stream Viewer</title>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         * {
             margin: 0;
@@ -70,10 +69,14 @@
             overflow: hidden;
         }
         
-        .video-player {
+        .player-frame {
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            border: none;
+        }
+        
+        .hidden {
+            display: none;
         }
         
         footer {
@@ -117,9 +120,10 @@
     
     <main>
         <div class="stream-container">
-            <h2>Stream: ipcam</h2>
+            <h2>Stream: <span id="stream-name">ipcam</span></h2>
             <div class="player-container">
-                <video id="videoPlayer" class="video-player" controls autoplay playsinline></video>
+                <iframe id="hls-player" class="player-frame" src="" allowfullscreen></iframe>
+                <iframe id="webrtc-player" class="player-frame hidden" src="" allowfullscreen></iframe>
             </div>
         </div>
     </main>
@@ -130,10 +134,15 @@
 
     <script>
         // Get DOM elements
-        const videoPlayer = document.getElementById('videoPlayer');
+        const hlsPlayer = document.getElementById('hls-player');
+        const webrtcPlayer = document.getElementById('webrtc-player');
         const deviceInfo = document.getElementById('device-info');
-        const streamPath = 'ipcam';
+        const streamNameElement = document.getElementById('stream-name');
         const radioButtons = document.querySelectorAll('input[name="protocol"]');
+        
+        // Default stream path
+        const streamPath = 'ipcam';
+        streamNameElement.textContent = streamPath;
         
         // Check if mobile
         const isMobile = window.innerWidth <= 768;
@@ -145,114 +154,38 @@
             
             switch(protocol) {
                 case 'hls':
+                    // Using MediaMTX's built-in HLS player
                     return `http://${host}:8888/${streamPath}/index.m3u8`;
                 case 'webrtc':
-                    return `ws://${host}:8891/${streamPath}`;
+                    // Using MediaMTX's built-in WebRTC player
+                    return `http://${host}:8889/${streamPath}`;
                 default:
                     return `http://${host}:8888/${streamPath}/index.m3u8`;
             }
         }
         
-        // Function to initialize HLS player
-        function initHlsPlayer() {
-            const streamUrl = getStreamUrl('hls');
-            
-            if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-                // Native HLS support (Safari)
-                videoPlayer.src = streamUrl;
-            } else if (Hls.isSupported()) {
-                // HLS.js for other browsers
-                const hls = new Hls();
-                hls.loadSource(streamUrl);
-                hls.attachMedia(videoPlayer);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    videoPlayer.play();
-                });
-            } else {
-                console.error('HLS is not supported in this browser');
+        // Function to switch between players
+        function switchPlayer(protocol) {
+            if (protocol === 'hls') {
+                hlsPlayer.classList.remove('hidden');
+                webrtcPlayer.classList.add('hidden');
+                hlsPlayer.src = getStreamUrl('hls');
+                deviceInfo.textContent = `Viewing on ${isMobile ? 'Mobile' : 'Desktop'} | Protocol: HLS`;
+            } else if (protocol === 'webrtc') {
+                hlsPlayer.classList.add('hidden');
+                webrtcPlayer.classList.remove('hidden');
+                webrtcPlayer.src = getStreamUrl('webrtc');
+                deviceInfo.textContent = `Viewing on ${isMobile ? 'Mobile' : 'Desktop'} | Protocol: WebRTC`;
             }
-            
-            deviceInfo.textContent = `Viewing on ${isMobile ? 'Mobile' : 'Desktop'} | Protocol: HLS`;
         }
         
-        // Function to initialize WebRTC player
-        function initWebRtcPlayer() {
-            // Clear any previous sources
-            if (videoPlayer.srcObject) {
-                videoPlayer.srcObject = null;
-            }
-            videoPlayer.src = '';
-            
-            const pc = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-            });
-            
-            pc.addTransceiver('video');
-            pc.createOffer()
-                .then(offer => pc.setLocalDescription(offer))
-                .then(() => {
-                    const ws = new WebSocket(getStreamUrl('webrtc'));
-                    
-                    ws.onopen = () => {
-                        ws.send(JSON.stringify({
-                            type: 'offer',
-                            sdp: pc.localDescription.sdp,
-                        }));
-                    };
-                    
-                    ws.onmessage = e => {
-                        const msg = JSON.parse(e.data);
-                        if (msg.type === 'answer') {
-                            pc.setRemoteDescription(new RTCSessionDescription({
-                                type: 'answer',
-                                sdp: msg.sdp,
-                            }));
-                        } else if (msg.type === 'candidate') {
-                            pc.addIceCandidate(new RTCIceCandidate({
-                                candidate: msg.candidate,
-                                sdpMid: msg.id,
-                                sdpMLineIndex: 0,
-                            }));
-                        }
-                    };
-                    
-                    pc.onicecandidate = e => {
-                        if (!e.candidate) return;
-                        
-                        ws.send(JSON.stringify({
-                            type: 'candidate',
-                            candidate: e.candidate.candidate,
-                            id: e.candidate.sdpMid,
-                        }));
-                    };
-                    
-                    pc.ontrack = e => {
-                        if (e.streams && e.streams[0]) {
-                            videoPlayer.srcObject = e.streams[0];
-                        }
-                    };
-                    
-                    // Clean up on page unload
-                    window.addEventListener('beforeunload', () => {
-                        ws.close();
-                        pc.close();
-                    });
-                });
-                
-            deviceInfo.textContent = `Viewing on ${isMobile ? 'Mobile' : 'Desktop'} | Protocol: WebRTC`;
-        }
-        
-        // Initialize HLS player by default
-        initHlsPlayer();
+        // Initialize with HLS player
+        hlsPlayer.src = getStreamUrl('hls');
         
         // Handle protocol switching
         radioButtons.forEach(radio => {
             radio.addEventListener('change', (e) => {
-                if (e.target.value === 'hls') {
-                    initHlsPlayer();
-                } else if (e.target.value === 'webrtc') {
-                    initWebRtcPlayer();
-                }
+                switchPlayer(e.target.value);
             });
         });
         
@@ -260,7 +193,7 @@
         window.addEventListener('resize', () => {
             const newIsMobile = window.innerWidth <= 768;
             if (newIsMobile !== isMobile) {
-                location.reload(); // Refresh page to adjust layout
+                deviceInfo.textContent = `Viewing on ${newIsMobile ? 'Mobile' : 'Desktop'} | Protocol: ${document.querySelector('input[name="protocol"]:checked').value.toUpperCase()}`;
             }
         });
     </script>
