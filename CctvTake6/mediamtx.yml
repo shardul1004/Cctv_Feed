@@ -11,24 +11,16 @@ apiaddress: :8501
 
 
 # RTSP settings
-rtsp:
-  protocols: [udp, multicast, tcp]
-  address: :8554
+rtsp: yes
 
 # RTMP settings
-rtmp:
-  enable: yes
-  address: :1935
+rtmp: yes
 # HLS settings
-hls:
-  enable: yes
-  address: :8888
-  alwaysConvertToH264: true
+hls: yes
 
 # WebRTC settings
-webrtc:
-  enable: yes
-  address: :8889
+webrtc: yes
+
 
 # Path settings
 paths:
