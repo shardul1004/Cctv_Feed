@@ -1,0 +1,18 @@
+FROM debian:bullseye-slim
+
+RUN apt-get update && apt-get install -y wget ffmpeg curl && apt-get clean
+
+# Install MediaMTX (ARM64)
+RUN wget https://github.com/bluenviron/mediamtx/releases/latest/download/mediamtx_linux_arm64.tar.gz \
+ && tar -xvzf mediamtx_linux_arm64.tar.gz \
+ && mv mediamtx /usr/local/bin/ \
+ && rm mediamtx_linux_arm64.tar.gz
+
+WORKDIR /app
+COPY mediamtx.yml .
+
+# EXPOSE is informational under host network_mode
+EXPOSE 8554    
+EXPOSE 8501    
+
+CMD ["mediamtx", "mediamtx.yml"]
