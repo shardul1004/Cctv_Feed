@@ -21,7 +21,7 @@ webrtc: yes
 webrtcAddress: :8891
 # Path settings
 paths:
-  default:
+  ipcam:
     # Replace with your actual RTSP URL
     source: rtsp://admin:123456@192.168.1.2:554/media/video2
     # Add a specific port for this stream

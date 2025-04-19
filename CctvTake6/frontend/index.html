@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaMTX Stream Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .protocol-selector {
+            margin-top: 1rem;
+        }
+        
+        .protocol-selector label {
+            margin: 0 0.5rem;
+            cursor: pointer;
+            color: white;
+        }
+        
+        main {
+            flex: 1;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .stream-container {
+            width: 100%;
+            max-width: 1200px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+        }
+        
+        .stream-container h2 {
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .player-container {
+            width: 100%;
+            position: relative;
+            aspect-ratio: 16/9;
+            background-color: #000;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .video-player {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        footer {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        /* Mobile styles */
+        @media (max-width: 768px) {
+            .stream-container {
+                padding: 0.5rem;
+            }
+            
+            header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .protocol-selector label {
+                display: block;
+                margin: 0.5rem 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>MediaMTX Stream Viewer</h1>
+        <div class="protocol-selector">
+            <label>
+                <input type="radio" name="protocol" value="hls" checked> 
+                HLS
+            </label>
+            <label>
+                <input type="radio" name="protocol" value="webrtc"> 
+                WebRTC
+            </label>
+        </div>
+    </header>
+    
+    <main>
+        <div class="stream-container">
+            <h2>Stream: ipcam</h2>
+            <div class="player-container">
+                <video id="videoPlayer" class="video-player" controls autoplay playsinline></video>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p id="device-info">Loading...</p>
+    </footer>
+
+    <script>
+        // Get DOM elements
+        const videoPlayer = document.getElementById('videoPlayer');
+        const deviceInfo = document.getElementById('device-info');
+        const streamPath = 'ipcam';
+        const radioButtons = document.querySelectorAll('input[name="protocol"]');
+        
+        // Check if mobile
+        const isMobile = window.innerWidth <= 768;
+        deviceInfo.textContent = `Viewing on ${isMobile ? 'Mobile' : 'Desktop'} | Protocol: HLS`;
+        
+        // Function to get stream URL based on protocol
+        function getStreamUrl(protocol) {
+            const host = window.location.hostname;
+            
+            switch(protocol) {
+                case 'hls':
+                    return `http://${host}:8888/${streamPath}/index.m3u8`;
+                case 'webrtc':
+                    return `ws://${host}:8891/${streamPath}`;
+                default:
+                    return `http://${host}:8888/${streamPath}/index.m3u8`;
+            }
+        }
+        
+        // Function to initialize HLS player
+        function initHlsPlayer() {
+            const streamUrl = getStreamUrl('hls');
+            
+            if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (Safari)
+                videoPlayer.src = streamUrl;
+            } else if (Hls.isSupported()) {
+                // HLS.js for other browsers
+                const hls = new Hls();
+                hls.loadSource(streamUrl);
+                hls.attachMedia(videoPlayer);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    videoPlayer.play();
+                });
+            } else {
+                console.error('HLS is not supported in this browser');
+            }
+            
+            deviceInfo.textContent = `Viewing on ${isMobile ? 'Mobile' : 'Desktop'} | Protocol: HLS`;
+        }
+        
+        // Function to initialize WebRTC player
+        function initWebRtcPlayer() {
+            // Clear any previous sources
+            if (videoPlayer.srcObject) {
+                videoPlayer.srcObject = null;
+            }
+            videoPlayer.src = '';
+            
+            const pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+            });
+            
+            pc.addTransceiver('video');
+            pc.createOffer()
+                .then(offer => pc.setLocalDescription(offer))
+                .then(() => {
+                    const ws = new WebSocket(getStreamUrl('webrtc'));
+                    
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({
+                            type: 'offer',
+                            sdp: pc.localDescription.sdp,
+                        }));
+                    };
+                    
+                    ws.onmessage = e => {
+                        const msg = JSON.parse(e.data);
+                        if (msg.type === 'answer') {
+                            pc.setRemoteDescription(new RTCSessionDescription({
+                                type: 'answer',
+                                sdp: msg.sdp,
+                            }));
+                        } else if (msg.type === 'candidate') {
+                            pc.addIceCandidate(new RTCIceCandidate({
+                                candidate: msg.candidate,
+                                sdpMid: msg.id,
+                                sdpMLineIndex: 0,
+                            }));
+                        }
+                    };
+                    
+                    pc.onicecandidate = e => {
+                        if (!e.candidate) return;
+                        
+                        ws.send(JSON.stringify({
+                            type: 'candidate',
+                            candidate: e.candidate.candidate,
+                            id: e.candidate.sdpMid,
+                        }));
+                    };
+                    
+                    pc.ontrack = e => {
+                        if (e.streams && e.streams[0]) {
+                            videoPlayer.srcObject = e.streams[0];
+                        }
+                    };
+                    
+                    // Clean up on page unload
+                    window.addEventListener('beforeunload', () => {
+                        ws.close();
+                        pc.close();
+                    });
+                });
+                
+            deviceInfo.textContent = `Viewing on ${isMobile ? 'Mobile' : 'Desktop'} | Protocol: WebRTC`;
+        }
+        
+        // Initialize HLS player by default
+        initHlsPlayer();
+        
+        // Handle protocol switching
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === 'hls') {
+                    initHlsPlayer();
+                } else if (e.target.value === 'webrtc') {
+                    initWebRtcPlayer();
+                }
+            });
+        });
+        
+        // Handle window resize for mobile detection
+        window.addEventListener('resize', () => {
+            const newIsMobile = window.innerWidth <= 768;
+            if (newIsMobile !== isMobile) {
+                location.reload(); // Refresh page to adjust layout
+            }
+        });
+    </script>
+</body>
+</html>

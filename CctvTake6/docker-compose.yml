@@ -2,6 +2,16 @@ version: '3'
 
 services:
   mediamtx:
-    build: .
+    build: 
+      context: ./mediamtx
     container_name: mediamtx
     network_mode: host  # Use host networking to access the IP camera
+
+  frontend:
+    build: 
+      context: ./frontend
+    container_name: mediamtx-frontend
+    network_mode: host  # Use host networking as requested
+    depends_on:
+      - mediamtx
+    restart: unless-stopped
