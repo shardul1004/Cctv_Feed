@@ -1,0 +1,179 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTSP Stream Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .video-feed {
+            width: 100%;
+            max-width: 960px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 0 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0069d9;
+        }
+        .settings {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RTSP Stream Viewer</h1>
+        
+        <div class="video-container">
+            <img src="{{ url_for('video_feed') }}" class="video-feed" alt="RTSP Stream">
+            <div id="status" class="status">Connecting to stream...</div>
+        </div>
+        
+        <div class="controls">
+            <button id="refresh-btn">Refresh Stream</button>
+            <button id="fullscreen-btn">Fullscreen</button>
+        </div>
+        
+        <div class="settings">
+            <h3>Stream Information</h3>
+            <p>Status: <span id="connection-status">Checking...</span></p>
+            <p>Last Updated: <span id="last-updated">-</span></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoFeed = document.querySelector('.video-feed');
+            const statusElement = document.getElementById('status');
+            const connectionStatus = document.getElementById('connection-status');
+            const lastUpdated = document.getElementById('last-updated');
+            const refreshBtn = document.getElementById('refresh-btn');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            
+            // Function to check stream health
+            function checkStreamHealth() {
+                fetch('/health')
+                    .then(response => response.json())
+                    .then(data => {
+                        const now = new Date().toLocaleTimeString();
+                        lastUpdated.textContent = now;
+                        
+                        if (data.status === 'healthy') {
+                            statusElement.textContent = 'Stream Connected';
+                            statusElement.className = 'status connected';
+                            connectionStatus.textContent = 'Connected';
+                        } else {
+                            statusElement.textContent = 'Stream Disconnected';
+                            statusElement.className = 'status disconnected';
+                            connectionStatus.textContent = 'Disconnected';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking stream health:', error);
+                        statusElement.textContent = 'Error Checking Stream';
+                        statusElement.className = 'status disconnected';
+                        connectionStatus.textContent = 'Error';
+                    });
+            }
+            
+            // Initial health check
+            checkStreamHealth();
+            
+            // Periodic health check every 5 seconds
+            setInterval(checkStreamHealth, 5000);
+            
+            // Refresh stream button
+            refreshBtn.addEventListener('click', function() {
+                const currentSrc = videoFeed.src;
+                videoFeed.src = '';
+                setTimeout(() => {
+                    videoFeed.src = currentSrc;
+                    checkStreamHealth();
+                }, 1000);
+            });
+            
+            // Fullscreen button
+            fullscreenBtn.addEventListener('click', function() {
+                if (videoFeed.requestFullscreen) {
+                    videoFeed.requestFullscreen();
+                } else if (videoFeed.webkitRequestFullscreen) {
+                    videoFeed.webkitRequestFullscreen();
+                } else if (videoFeed.msRequestFullscreen) {
+                    videoFeed.msRequestFullscreen();
+                }
+            });
+            
+            // Handle stream errors
+            videoFeed.addEventListener('error', function() {
+                statusElement.textContent = 'Stream Error - Reconnecting...';
+                statusElement.className = 'status disconnected';
+                connectionStatus.textContent = 'Error';
+                
+                // Attempt to reload the image after a delay
+                setTimeout(() => {
+                    const currentSrc = videoFeed.src;
+                    videoFeed.src = '';
+                    setTimeout(() => {
+                        videoFeed.src = currentSrc;
+                    }, 1000);
+                }, 5000);
+            });
+        });
+    </script>
+</body>
+</html>

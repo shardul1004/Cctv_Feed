@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  kurento:
+    image: kurento/kurento-media-server:latest
+    container_name: kurento
+    network_mode: host  # Keep host network mode for RTSP camera access
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8888/kurento || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  app:
+    build: .
+    container_name: kurento-app
+    network_mode: host  # Use host network to ensure direct access to kurento
+    environment:
+      - RTSP_URL=rtsp://admin:123456@192.168.1.2:554/media/video2
+      - KURENTO_WS_URL=ws://localhost:8888/kurento  # Use localhost since we're using network_mode: host
+    depends_on:
+      - kurento
+    restart: unless-stopped

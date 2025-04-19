@@ -1,0 +1,6 @@
+aiohttp>=3.8.0
+aiortc>=1.4.0
+opencv-python-headless>=4.5.0.64
+av>=8.0.0
+numpy>=1.19.0
+python-dotenv>=0.20.0

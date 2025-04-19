@@ -1,0 +1,40 @@
+# docker-compose.yml
+version: '3'
+
+services:
+  # Janus WebRTC Gateway with RTSP support
+  janus:
+    build:
+      context: ./janus
+      dockerfile: Dockerfile
+    ports:
+      - "8088:8088"  # HTTP API
+      - "8188:8188"  # HTTPS API (if enabled)
+      - "8989:8989"  # WebSocket
+      - "8989:8989/udp"  # WebRTC UDP
+      - "10000-10200:10000-10200/udp"  # RTP/RTCP ports
+    volumes:
+      - ./janus/conf:/usr/local/etc/janus
+    restart: unless-stopped
+    networks:
+      - rtsp-network
+
+  # Node.js server for the web interface
+  web-server:
+    build:
+      context: ./web-server
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - JANUS_SERVER=http://janus:8088/janus
+      - PORT=3000
+    depends_on:
+      - janus
+    restart: unless-stopped
+    networks:
+      - rtsp-network
+
+networks:
+  rtsp-network:
+    driver: bridge

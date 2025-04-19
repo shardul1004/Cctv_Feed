@@ -1,0 +1,269 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Live RTSP Stream via Kurento</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #videoOutput {
+      width: 100%;
+      max-width: 800px;
+      background: #000;
+      display: block;
+      margin: 20px auto;
+    }
+    #status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .warning {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    #controls {
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Live Video Feed</h1>
+  
+  <div id="status" class="warning">Connecting to server...</div>
+  
+  <video id="videoOutput" autoplay controls></video>
+  
+  <div id="controls">
+    <button id="startBtn" disabled>Start Stream</button>
+    <button id="stopBtn" disabled>Stop Stream</button>
+  </div>
+
+  <script>
+    // UI elements
+    const videoElement = document.getElementById('videoOutput');
+    const statusElement = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    
+    // WebSocket connection
+    let ws = null;
+    // RTCPeerConnection
+    let pc = null;
+    
+    // Set status message with appropriate styling
+    function setStatus(message, type) {
+      statusElement.textContent = message;
+      statusElement.className = type; // 'success', 'error', or 'warning'
+    }
+    
+    // Initialize the connection
+    function init() {
+      // Connect to our Node.js server 
+      const wsUrl = `ws://${window.location.host}/kurento`;
+      
+      setStatus('Connecting to WebSocket server...', 'warning');
+      console.log('Connecting to WebSocket server at:', wsUrl);
+      
+      // Create WebSocket connection
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = function() {
+        console.log('WebSocket connection established');
+        setStatus('Connected to server. Ready to start stream.', 'success');
+        startBtn.disabled = false;
+      };
+
+      ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+        setStatus('Connection error. Please check console for details.', 'error');
+      };
+
+      ws.onclose = function() {
+        console.log('WebSocket connection closed');
+        setStatus('Connection closed', 'warning');
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+        // Clean up
+        if (pc) {
+          pc.close();
+          pc = null;
+        }
+        // Try to reconnect after 5 seconds
+        setTimeout(init, 5000);
+      };
+
+      ws.onmessage = function(message) {
+        let parsedMessage;
+        try {
+          parsedMessage = JSON.parse(message.data);
+          console.log('Received message:', parsedMessage.id);
+        } catch (e) {
+          console.error('Error parsing message:', e);
+          return;
+        }
+
+        switch(parsedMessage.id) {
+          case 'startResponse':
+            console.log('Received SDP answer');
+            handleStartResponse(parsedMessage);
+            break;
+          case 'iceCandidate':
+            console.log('Received ICE candidate from server');
+            handleIceCandidate(parsedMessage);
+            break;
+          case 'error':
+            console.error('Error from server:', parsedMessage.message);
+            setStatus(`Error: ${parsedMessage.message}`, 'error');
+            break;
+          case 'stopResponse':
+            console.log('Stream stopped');
+            setStatus('Stream stopped', 'warning');
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            break;
+          default:
+            console.log('Unknown message', parsedMessage);
+        }
+      };
+    }
+    
+    function handleStartResponse(message) {
+      setStatus('Stream starting...', 'warning');
+      
+      // Set the remote description with the answer from the server
+      pc.setRemoteDescription(new RTCSessionDescription({
+        type: 'answer', 
+        sdp: message.sdpAnswer
+      }))
+      .then(() => {
+        console.log('Remote description set successfully');
+        setStatus('Stream connected', 'success');
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+      })
+      .catch(error => {
+        console.error('Error setting remote description:', error);
+        setStatus(`Error connecting stream: ${error.message}`, 'error');
+      });
+    }
+    
+    function handleIceCandidate(message) {
+      if (pc) {
+        pc.addIceCandidate(new RTCIceCandidate(message.candidate))
+          .catch(error => {
+            console.error('Error adding received ICE candidate:', error);
+          });
+      }
+    }
+
+    function startConnection() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        setStatus('Not connected to server', 'error');
+        return;
+      }
+      
+      setStatus('Creating connection...', 'warning');
+      console.log('Creating WebRTC connection...');
+      
+      // Create the RTCPeerConnection
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' }
+        ]
+      });
+
+      // When remote stream is added, display it in the video element
+      pc.ontrack = function(event) {
+        console.log('Track received:', event.track.kind);
+        if (videoElement.srcObject !== event.streams[0]) {
+          videoElement.srcObject = event.streams[0];
+          console.log('Remote stream connected to video element');
+        }
+      };
+
+      // Connection state monitoring
+      pc.oniceconnectionstatechange = function() {
+        console.log('ICE connection state changed to:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'disconnected' || 
+            pc.iceConnectionState === 'failed' || 
+            pc.iceConnectionState === 'closed') {
+          setStatus(`WebRTC ${pc.iceConnectionState}`, 'error');
+        }
+      };
+
+      // Send ICE candidates to the server
+      pc.onicecandidate = function(event) {
+        if (event.candidate) {
+          console.log('Sending ICE candidate to server');
+          ws.send(JSON.stringify({
+            id: 'onIceCandidate',
+            candidate: event.candidate
+          }));
+        }
+      };
+
+      console.log('Creating offer...');
+      // Add transceivers to receive audio and video
+      pc.addTransceiver('audio', {direction: 'recvonly'});
+      pc.addTransceiver('video', {direction: 'recvonly'});
+      
+      pc.createOffer()
+        .then(offer => {
+          console.log('Offer created');
+          return pc.setLocalDescription(offer);
+        })
+        .then(() => {
+          console.log('Local description set, sending SDP offer');
+          const message = {
+            id: 'start',
+            sdpOffer: pc.localDescription.sdp
+          };
+          ws.send(JSON.stringify(message));
+        })
+        .catch(error => {
+          console.error('Error creating offer:', error);
+          setStatus(`Error creating connection: ${error.message}`, 'error');
+        });
+    }
+    
+    function stopConnection() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      
+      // Send stop message to server
+      ws.send(JSON.stringify({id: 'stop'}));
+      
+      // Clean up WebRTC connection
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+      
+      // Clear video
+      videoElement.srcObject = null;
+    }
+    
+    // Add event listeners to buttons
+    startBtn.addEventListener('click', startConnection);
+    stopBtn.addEventListener('click', stopConnection);
+    
+    // Initialize on page load
+    window.onload = init;
+  </script>
+</body>
+</html>

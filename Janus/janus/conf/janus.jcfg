@@ -1,0 +1,17 @@
+general: {
+    log_to_stdout = true
+    debug_level = 4
+    admin_secret = "janusrocks"
+    token_auth = false
+}
+
+media: {
+    rtp_port_range = "10000-10200"
+    no_media_timer = 120
+}
+
+nat: {
+    ice_lite = true
+    ice_tcp = true
+    full_trickle = true
+}

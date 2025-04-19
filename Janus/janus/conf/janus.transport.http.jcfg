@@ -1,0 +1,10 @@
+general: {
+    json = "indented"
+    base_path = "/janus"
+    http = true
+    port = 8088
+    https = false
+    cors = true
+    acl = "0.0.0.0/0"
+
+}

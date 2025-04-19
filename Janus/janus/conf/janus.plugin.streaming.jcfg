@@ -1,0 +1,32 @@
+general: {
+    admin_key = "janusrocks"
+    events = true
+    rtsp_timeout = 60
+    rtsp_retry = 3
+}
+
+streaming: {
+    general: {
+        admin_key = "janusrocks"
+        events = true
+        rtsp_timeout = 60
+        rtsp_retry = 3
+    }
+
+    # Example mountpoint that can be customized later through the API
+    mountpoints: {
+        rtsp-example: {
+            type = "rtsp"
+            id = 1
+            description = "RTSP Example Stream"
+            audio = true
+            video = true
+            # Replace with your actual RTSP URL
+            #url = "rtsp://example.com/stream"
+            # Reconnect automatically if needed
+            rtsp_reconnect = true
+            # RTSP timeout, in seconds
+            rtsp_timeout = 60
+        }
+    }
+}

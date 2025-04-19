@@ -1,0 +1,16 @@
+{
+    "name": "kurento-rtsp-server",
+    "version": "1.0.0",
+    "description": "A Node.js server using Kurento to stream RTSP via WebRTC",
+    "main": "server.js",
+    "scripts": {
+      "start": "node server.js"
+    },
+    "dependencies": {
+      "express": "^4.18.2",
+      "kurento-client": "^6.16.0",
+      "ws": "^8.12.0",
+      "dotenv": "^16.0.0"
+    }
+  }
+  

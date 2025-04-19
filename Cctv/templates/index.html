@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC RTSP Stream</title>
+</head>
+<body>
+    <h1>Live Stream</h1>
+    <video id="video" autoplay playsinline controls></video>
+    <script>
+        const pc = new RTCPeerConnection();
+
+        // When a remote track is received, attach it to the video element.
+        pc.ontrack = function(event) {
+            const video = document.getElementById("video");
+            video.srcObject = event.streams[0];
+        };
+
+        async function start() {
+            // Create an offer and set local description.
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            // Send the offer to the server.
+            const response = await fetch('/offer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sdp: pc.localDescription.sdp,
+                    type: pc.localDescription.type
+                })
+            });
+
+            // Set the remote description with the answer from the server.
+            const answer = await response.json();
+            await pc.setRemoteDescription(answer);
+        }
+
+        start();
+    </script>
+</body>
+</html>
