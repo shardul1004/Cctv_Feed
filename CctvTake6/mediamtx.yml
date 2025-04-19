@@ -6,9 +6,9 @@ readTimeout: 10s
 writeTimeout: 10s
 
 # API settings
-api:
-  enable: yes
-  address: 0.0.0.0:8501
+api: yes
+apiaddress: :8501
+
 
 # RTSP settings
 rtsp:
@@ -19,12 +19,11 @@ rtsp:
 rtmp:
   enable: yes
   address: :1935
-
 # HLS settings
 hls:
   enable: yes
   address: :8888
-  alwaysConvertToH264: yes
+  alwaysConvertToH264: true
 
 # WebRTC settings
 webrtc:
@@ -36,5 +35,3 @@ paths:
   ipcamera:
     # Replace with your actual RTSP URL
     source: rtsp://admin:123456@192.168.1.2:554/media/video2
-    sourceOnDemand: no
-    runOnDemand: no
