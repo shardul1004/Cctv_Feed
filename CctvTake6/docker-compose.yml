@@ -1,8 +1,0 @@
-version: "3.8"
-
-services:
-  mediamtx:
-    build: .
-    container_name: mediamtx
-    network_mode: host
-    restart: unless-stopped

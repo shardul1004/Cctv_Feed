@@ -1,9 +1,111 @@
-server:
-  # listen on 0.0.0.0:8501
-  address: ":8501"
-  protocols: [rtsp, webrtc, hls]
+# MediaMTX configuration
+
+###############################################
+# General settings
+
+# Log level. Log messages with lower severity are discarded.
+# Values: debug, info, warn, error
+logLevel: info
+
+# Timeout of read operations.
+readTimeout: 10s
+
+# Timeout of write operations.
+writeTimeout: 10s
+
+# Number of read buffers.
+# Higher values allow to read more frames in advance, increasing throughput,
+# but also increasing memory usage.
+readBufferCount: 512
+
+###############################################
+# API
+
+api:
+  # Enable the API.
+  enable: yes
+
+  # Address of the API listener.
+  # Use 0.0.0.0:8501 to make it available on all interfaces.
+  address: 0.0.0.0:8501
+
+###############################################
+# RTSP settings
+
+rtsp:
+  # Supported protocols.
+  # UDP is the most performant, but doesn't work when there's a NAT/firewall between
+  # server and clients.
+  # UDP-multicast allows to save bandwidth when clients are all in the same LAN.
+  # TCP is the most reliable, and doesn't require special firewall configurations, but
+  # it's less performant and scalable.
+  protocols: [udp, multicast, tcp]
+  
+  # Address of the RTSP listener.
+  address: :8554
+
+###############################################
+# RTMP settings
+
+rtmp:
+  # Enable the RTMP server.
+  enable: yes
+
+  # Address of the RTMP listener.
+  address: :1935
+
+###############################################
+# HLS settings
+
+hls:
+  # Enable the HLS server.
+  enable: yes
+
+  # Address of the HLS listener.
+  address: :8888
+  
+  # By enabling this option, the HLS server will convert all videos
+  # to H.264 before sending them to clients.
+  # This makes the stream compatible with a larger number of clients,
+  # but also increases the CPU load.
+  alwaysConvertToH264: yes
+
+###############################################
+# WebRTC settings
+
+webrtc:
+  # Enable the WebRTC server.
+  enable: yes
+
+  # Address of the WebRTC listener.
+  address: :8889
+
+###############################################
+# Web UI settings
+
+webrtcLocalHost: "localhost"
+webrtcPublicHost: ""
+
+###############################################
+# Path settings
 
 paths:
-  cam:
+  # Path is used to access your RTSP stream: rtsp://localhost:8554/ipcamera
+  ipcamera:
+    # Source of the stream - use your RTSP URL here
+    # REPLACE THIS WITH YOUR ACTUAL RTSP URL
     source: rtsp://admin:123456@192.168.1.2:554/media/video2
-    sourceOnDemand: yes
+    
+    # Keep the stream always running, and automatically reconnect in case of failure
+    sourceOnDemand: no
+    
+    # Automatically restart the stream if it disconnects or fails
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 10s
+    
+    # Run the stream continuously, even without viewers
+    runOnDemand: no
+    
+    # Reduce the reconnection attempts in case of failures
+    # This helps with performance on Raspberry Pi
+    readBufferCount: 256
