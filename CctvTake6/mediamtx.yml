@@ -4,7 +4,6 @@
 logLevel: info
 readTimeout: 10s
 writeTimeout: 10s
-readBufferCount: 512
 
 # API settings
 api:
@@ -39,4 +38,3 @@ paths:
     source: rtsp://admin:123456@192.168.1.2:554/media/video2
     sourceOnDemand: no
     runOnDemand: no
-    readBufferCount: 256
